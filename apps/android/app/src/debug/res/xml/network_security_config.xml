@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-  <!-- Release default: keep cleartext off unless explicitly allowlisted. -->
-  <base-config cleartextTrafficPermitted="false" />
-
-  <!-- Allow HTTP only for known local/tailnet hostnames. -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+  <!-- Debug builds keep cleartext enabled for local emulator/LAN testing workflows. -->
+  <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" />
   <domain-config cleartextTrafficPermitted="true">
     <domain includeSubdomains="true">openclaw.local</domain>
   </domain-config>

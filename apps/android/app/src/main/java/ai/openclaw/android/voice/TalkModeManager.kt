@@ -49,6 +49,8 @@ class TalkModeManager(
   private val session: GatewaySession,
   private val supportsChatSubscribe: Boolean,
   private val isConnected: () -> Boolean,
+  private val isVoiceOutputEnabled: () -> Boolean = { true },
+  private val resolveThinkingLevel: () -> String = { "low" },
 ) {
   companion object {
     private const val tag = "TalkMode"
@@ -216,6 +218,13 @@ class TalkModeManager(
         return@post
       }
 
+      if (!isConnected()) {
+        _isListening.value = false
+        _statusText.value = "Waiting for gateway…"
+        Log.d(tag, "start deferred: gateway not connected")
+        return@post
+      }
+
       try {
         recognizer?.destroy()
         recognizer = SpeechRecognizer.createSpeechRecognizer(context).also { it.setRecognitionListener(listener) }
@@ -274,6 +283,11 @@ class TalkModeManager(
 
   private fun scheduleRestart(delayMs: Long = 350) {
     if (stopRequested) return
+    if (!isConnected()) {
+      _isListening.value = false
+      _statusText.value = "Waiting for gateway…"
+      return
+    }
     restartJob?.cancel()
     restartJob =
       scope.launch {
@@ -414,7 +428,7 @@ class TalkModeManager(
       buildJsonObject {
         put("sessionKey", JsonPrimitive(mainSessionKey.ifBlank { "main" }))
         put("message", JsonPrimitive(message))
-        put("thinking", JsonPrimitive("low"))
+        put("thinking", JsonPrimitive(resolveThinkingLevel()))
         put("timeoutMs", JsonPrimitive(30_000))
         put("idempotencyKey", JsonPrimitive(runId))
       }
@@ -520,6 +534,12 @@ class TalkModeManager(
       apiKey?.trim()?.takeIf { it.isNotEmpty() }
         ?: System.getenv("ELEVENLABS_API_KEY")?.trim()
     val preferredVoice = resolvedVoice ?: currentVoiceId ?: defaultVoiceId
+
+    if (!isVoiceOutputEnabled()) {
+      _statusText.value = "Reply ready (text only)"
+      _isSpeaking.value = false
+      return
+    }
     val voiceId =
       if (!apiKey.isNullOrEmpty()) {
         resolveVoiceId(preferredVoice, apiKey)
@@ -1243,8 +1263,8 @@ class TalkModeManager(
   private val listener =
     object : RecognitionListener {
       override fun onReadyForSpeech(params: Bundle?) {
-        if (_isEnabled.value) {
-          _statusText.value = if (_isListening.value) "Listening" else _statusText.value
+        if (_isEnabled.value && _isListening.value) {
+          _statusText.value = "Listening"
         }
       }
 
@@ -1272,10 +1292,10 @@ class TalkModeManager(
             SpeechRecognizer.ERROR_CLIENT -> "Client error"
             SpeechRecognizer.ERROR_NETWORK -> "Network error"
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-            SpeechRecognizer.ERROR_NO_MATCH -> "Listening"
+            SpeechRecognizer.ERROR_NO_MATCH -> "Waiting for speech…"
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
             SpeechRecognizer.ERROR_SERVER -> "Server error"
-            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening"
+            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Waiting for speech…"
             else -> "Speech error ($error)"
           }
         scheduleRestart(delayMs = 600)
