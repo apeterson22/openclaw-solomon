@@ -45,9 +45,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val voiceWakeStatusText: StateFlow<String> = runtime.voiceWakeStatusText
   val voiceWakeIsListening: StateFlow<Boolean> = runtime.voiceWakeIsListening
   val talkEnabled: StateFlow<Boolean> = runtime.talkEnabled
+  val talkVoiceOutputEnabled: StateFlow<Boolean> = runtime.talkVoiceOutputEnabled
   val talkStatusText: StateFlow<String> = runtime.talkStatusText
   val talkIsListening: StateFlow<Boolean> = runtime.talkIsListening
   val talkIsSpeaking: StateFlow<Boolean> = runtime.talkIsSpeaking
+  val devicePairingStatusText: StateFlow<String> = runtime.devicePairingStatusText
+  val operatorConnectionStatusText: StateFlow<String> = runtime.operatorConnectionStatusText
+  val nodeConnectionStatusText: StateFlow<String> = runtime.nodeConnectionStatusText
+  val browserAuthStatusText: StateFlow<String> = runtime.browserAuthStatusText
+  val modelRouteMode: StateFlow<ModelRouteMode> = runtime.modelRouteMode
   val manualEnabled: StateFlow<Boolean> = runtime.manualEnabled
   val manualHost: StateFlow<String> = runtime.manualHost
   val manualPort: StateFlow<Int> = runtime.manualPort
@@ -128,6 +134,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
   fun setTalkEnabled(enabled: Boolean) {
     runtime.setTalkEnabled(enabled)
+  }
+
+  fun setTalkVoiceOutputEnabled(enabled: Boolean) {
+    runtime.setTalkVoiceOutputEnabled(enabled)
+  }
+
+  fun setModelRouteMode(mode: ModelRouteMode) {
+    runtime.setModelRouteMode(mode)
   }
 
   fun refreshGatewayConnection() {

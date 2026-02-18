@@ -19,14 +19,17 @@ fun OpenClawTheme(content: @Composable () -> Unit) {
 
 @Composable
 fun overlayContainerColor(): Color {
-  val scheme = MaterialTheme.colorScheme
   val isDark = isSystemInDarkTheme()
-  val base = if (isDark) scheme.surfaceContainerLow else scheme.surfaceContainerHigh
-  // Light mode: background stays dark (canvas), so clamp overlays away from pure-white glare.
-  return if (isDark) base else base.copy(alpha = 0.88f)
+  return if (isDark) {
+    // Dashboard-inspired dark mode: black glass with red tint.
+    Color(0xCC12060A)
+  } else {
+    // Keep light mode usable but avoid bright glare over canvas.
+    Color(0xE62A141A)
+  }
 }
 
 @Composable
 fun overlayIconColor(): Color {
-  return MaterialTheme.colorScheme.onSurfaceVariant
+  return if (isSystemInDarkTheme()) Color(0xFFFF5A66) else MaterialTheme.colorScheme.onSurfaceVariant
 }

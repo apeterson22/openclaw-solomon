@@ -64,7 +64,7 @@ class NodeRuntime(context: Context) {
             buildJsonObject {
               put("message", JsonPrimitive(command))
               put("sessionKey", JsonPrimitive(resolveMainSessionKey()))
-              put("thinking", JsonPrimitive(chatThinkingLevel.value))
+              put("thinking", JsonPrimitive(resolveRouteThinking(chatThinkingLevel.value)))
               put("deliver", JsonPrimitive(false))
             }.toString(),
         )
@@ -86,6 +86,18 @@ class NodeRuntime(context: Context) {
 
   val talkIsSpeaking: StateFlow<Boolean>
     get() = talkMode.isSpeaking
+
+  private val _devicePairingStatusText = MutableStateFlow("Not paired")
+  val devicePairingStatusText: StateFlow<String> = _devicePairingStatusText.asStateFlow()
+
+  private val _operatorConnectionStatusText = MutableStateFlow("Offline")
+  val operatorConnectionStatusText: StateFlow<String> = _operatorConnectionStatusText.asStateFlow()
+
+  private val _nodeConnectionStatusText = MutableStateFlow("Offline")
+  val nodeConnectionStatusText: StateFlow<String> = _nodeConnectionStatusText.asStateFlow()
+
+  private val _browserAuthStatusText = MutableStateFlow("Unknown")
+  val browserAuthStatusText: StateFlow<String> = _browserAuthStatusText.asStateFlow()
 
   private val discovery = GatewayDiscovery(appContext, scope = scope)
   val gateways: StateFlow<List<GatewayEndpoint>> = discovery.gateways
@@ -288,6 +300,8 @@ class NodeRuntime(context: Context) {
       session = operatorSession,
       supportsChatSubscribe = false,
       isConnected = { operatorConnected },
+      isVoiceOutputEnabled = { talkVoiceOutputEnabled.value },
+      resolveThinkingLevel = { resolveRouteThinking("low") },
     )
   }
 
@@ -304,17 +318,45 @@ class NodeRuntime(context: Context) {
     _isConnected.value = operatorConnected
     _statusText.value =
       when {
-        operatorConnected && nodeConnected -> "Connected"
-        operatorConnected && !nodeConnected -> "Connected (node offline)"
+        operatorConnected -> "Connected"
         !operatorConnected && nodeConnected -> "Connected (operator offline)"
         operatorStatusText.isNotBlank() && operatorStatusText != "Offline" -> operatorStatusText
         else -> nodeStatusText
       }
+    refreshConnectionFacetStatus()
   }
 
   private fun resolveMainSessionKey(): String {
     val trimmed = _mainSessionKey.value.trim()
     return if (trimmed.isEmpty()) "main" else trimmed
+  }
+
+  private fun resolveRouteThinking(defaultValue: String): String {
+    // Routing mode is currently UI-only; keep chat behavior on the existing default policy.
+    return defaultValue
+  }
+
+  private fun isLikelyPairingOrAuthIssue(message: String): Boolean {
+    val lower = message.lowercase()
+    return lower.contains("pair") || lower.contains("auth") || lower.contains("approval")
+  }
+
+  private fun refreshConnectionFacetStatus() {
+    _operatorConnectionStatusText.value = if (operatorConnected) "Connected" else operatorStatusText
+    _nodeConnectionStatusText.value = if (nodeConnected) "Connected" else nodeStatusText
+
+    val identity = identityStore.loadOrCreate()
+    val opToken = deviceAuthStore.loadToken(identity.deviceId, "operator")
+    val nodeToken = deviceAuthStore.loadToken(identity.deviceId, "node")
+    val paired = !opToken.isNullOrBlank() || !nodeToken.isNullOrBlank()
+    _devicePairingStatusText.value = if (paired) "Paired" else "Not paired"
+
+    _browserAuthStatusText.value =
+      when {
+        operatorConnected -> "Authorized"
+        isLikelyPairingOrAuthIssue(operatorStatusText) -> "Session pairing needed"
+        else -> "Waiting"
+      }
   }
 
   private fun maybeNavigateToA2uiOnConnect() {
@@ -340,6 +382,8 @@ class NodeRuntime(context: Context) {
   val wakeWords: StateFlow<List<String>> = prefs.wakeWords
   val voiceWakeMode: StateFlow<VoiceWakeMode> = prefs.voiceWakeMode
   val talkEnabled: StateFlow<Boolean> = prefs.talkEnabled
+  val talkVoiceOutputEnabled: StateFlow<Boolean> = prefs.talkVoiceOutputEnabled
+  val modelRouteMode: StateFlow<ModelRouteMode> = prefs.modelRouteMode
   val manualEnabled: StateFlow<Boolean> = prefs.manualEnabled
   val manualHost: StateFlow<String> = prefs.manualHost
   val manualPort: StateFlow<Int> = prefs.manualPort
@@ -370,6 +414,7 @@ class NodeRuntime(context: Context) {
       operatorSession = operatorSession,
       isConnected = { _isConnected.value },
     )
+    refreshConnectionFacetStatus()
 
     scope.launch {
       combine(
@@ -531,6 +576,22 @@ class NodeRuntime(context: Context) {
     prefs.setTalkEnabled(value)
   }
 
+  fun setTalkVoiceOutputEnabled(value: Boolean) {
+    prefs.setTalkVoiceOutputEnabled(value)
+  }
+
+  fun setModelRouteMode(mode: ModelRouteMode) {
+    prefs.setModelRouteMode(mode)
+    scope.launch {
+      runCatching {
+        operatorSession.sendNodeEvent(
+          event = "model.route.changed",
+          payloadJson = buildJsonObject { put("mode", JsonPrimitive(mode.rawValue)) }.toString(),
+        )
+      }
+    }
+  }
+
   fun refreshGatewayConnection() {
     val endpoint = connectedEndpoint ?: return
     val token = prefs.loadGatewayToken()
@@ -543,6 +604,11 @@ class NodeRuntime(context: Context) {
   }
 
   fun connect(endpoint: GatewayEndpoint) {
+    if (manualEnabled.value && !endpoint.stableId.startsWith("manual|")) {
+      _statusText.value = "Manual gateway mode active"
+      return
+    }
+
     val tls = connectionManager.resolveTlsParams(endpoint)
     if (tls?.required == true && tls.expectedFingerprint.isNullOrBlank()) {
       // First-time TLS: capture fingerprint, ask user to verify out-of-band, then store and connect.

@@ -20,6 +20,7 @@ class SecurePrefs(context: Context) {
     val defaultWakeWords: List<String> = listOf("openclaw", "claude")
     private const val displayNameKey = "node.displayName"
     private const val voiceWakeModeKey = "voiceWake.mode"
+    private const val modelRouteModeKey = "model.route.mode"
   }
 
   private val appContext = context.applicationContext
@@ -93,6 +94,12 @@ class SecurePrefs(context: Context) {
 
   private val _talkEnabled = MutableStateFlow(prefs.getBoolean("talk.enabled", false))
   val talkEnabled: StateFlow<Boolean> = _talkEnabled
+
+  private val _talkVoiceOutputEnabled = MutableStateFlow(prefs.getBoolean("talk.voiceOutput.enabled", true))
+  val talkVoiceOutputEnabled: StateFlow<Boolean> = _talkVoiceOutputEnabled
+
+  private val _modelRouteMode = MutableStateFlow(loadModelRouteMode())
+  val modelRouteMode: StateFlow<ModelRouteMode> = _modelRouteMode
 
   fun setLastDiscoveredStableId(value: String) {
     val trimmed = value.trim()
@@ -248,6 +255,25 @@ class SecurePrefs(context: Context) {
   fun setTalkEnabled(value: Boolean) {
     prefs.edit { putBoolean("talk.enabled", value) }
     _talkEnabled.value = value
+  }
+
+  fun setTalkVoiceOutputEnabled(value: Boolean) {
+    prefs.edit { putBoolean("talk.voiceOutput.enabled", value) }
+    _talkVoiceOutputEnabled.value = value
+  }
+
+  fun setModelRouteMode(value: ModelRouteMode) {
+    prefs.edit { putString(modelRouteModeKey, value.rawValue) }
+    _modelRouteMode.value = value
+  }
+
+  private fun loadModelRouteMode(): ModelRouteMode {
+    val raw = prefs.getString(modelRouteModeKey, null)
+    val resolved = ModelRouteMode.fromRawValue(raw)
+    if (raw.isNullOrBlank()) {
+      prefs.edit { putString(modelRouteModeKey, resolved.rawValue) }
+    }
+    return resolved
   }
 
   private fun loadVoiceWakeMode(): VoiceWakeMode {

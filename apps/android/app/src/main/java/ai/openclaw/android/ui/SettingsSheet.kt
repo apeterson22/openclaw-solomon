@@ -63,6 +63,7 @@ import androidx.core.content.ContextCompat
 import ai.openclaw.android.BuildConfig
 import ai.openclaw.android.LocationMode
 import ai.openclaw.android.MainViewModel
+import ai.openclaw.android.ModelRouteMode
 import ai.openclaw.android.NodeForegroundService
 import ai.openclaw.android.VoiceWakeMode
 import ai.openclaw.android.WakeWords
@@ -79,6 +80,15 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val wakeWords by viewModel.wakeWords.collectAsState()
   val voiceWakeMode by viewModel.voiceWakeMode.collectAsState()
   val voiceWakeStatusText by viewModel.voiceWakeStatusText.collectAsState()
+  val talkEnabled by viewModel.talkEnabled.collectAsState()
+  val talkVoiceOutputEnabled by viewModel.talkVoiceOutputEnabled.collectAsState()
+  val talkStatusText by viewModel.talkStatusText.collectAsState()
+  val mainSessionKey by viewModel.mainSessionKey.collectAsState()
+  val modelRouteMode by viewModel.modelRouteMode.collectAsState()
+  val devicePairingStatusText by viewModel.devicePairingStatusText.collectAsState()
+  val operatorConnectionStatusText by viewModel.operatorConnectionStatusText.collectAsState()
+  val nodeConnectionStatusText by viewModel.nodeConnectionStatusText.collectAsState()
+  val browserAuthStatusText by viewModel.browserAuthStatusText.collectAsState()
   val isConnected by viewModel.isConnected.collectAsState()
   val manualEnabled by viewModel.manualEnabled.collectAsState()
   val manualHost by viewModel.manualHost.collectAsState()
@@ -284,6 +294,31 @@ fun SettingsSheet(viewModel: MainViewModel) {
       "Discovery active • ${visibleGateways.size} gateway${if (visibleGateways.size == 1) "" else "s"} found"
     }
 
+  val remoteHost = remoteAddress?.substringBefore(":")?.trim()?.takeIf { it.isNotEmpty() }
+  val gatewayWebUrl =
+    remoteHost?.let {
+      val isLikelyIp = it.any { ch -> ch == '.' } && it.all { ch -> ch.isDigit() || ch == '.' }
+      val scheme = if (manualTls || !isLikelyIp) "https" else "http"
+      val key = mainSessionKey.trim().ifEmpty { "main" }
+      Uri.parse("$scheme://$it").buildUpon()
+        .appendQueryParameter("session", key)
+        .appendQueryParameter("sessionKey", key)
+        .build()
+        .toString()
+    }
+
+  fun openInBrave(url: String?) {
+    val target = url?.trim().orEmpty()
+    if (target.isEmpty()) return
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(target)).apply { setPackage("com.brave.browser") }
+    val canOpen = intent.resolveActivity(context.packageManager) != null
+    if (canOpen) {
+      context.startActivity(intent)
+    } else {
+      context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+    }
+  }
+
   LazyColumn(
     state = listState,
     modifier =
@@ -336,6 +371,36 @@ fun SettingsSheet(viewModel: MainViewModel) {
 
     item { HorizontalDivider() }
 
+    item { Text("Browser Pairing (Brave)", style = MaterialTheme.typography.titleSmall) }
+    item {
+      ListItem(headlineContent = { Text("Paired Device") }, supportingContent = { Text(devicePairingStatusText) })
+    }
+    item {
+      ListItem(headlineContent = { Text("Connected Node") }, supportingContent = { Text(nodeConnectionStatusText) })
+    }
+    item {
+      ListItem(headlineContent = { Text("Browser Auth") }, supportingContent = { Text(browserAuthStatusText) })
+    }
+    item {
+      ListItem(headlineContent = { Text("Gateway Operator Link") }, supportingContent = { Text(operatorConnectionStatusText) })
+    }
+    item {
+      Text(
+        "If Brave shows session pairing needed: 1) Tap Reconnect Now, 2) Open Gateway in Brave, 3) complete approval/auth there, then return.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    item {
+      Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { viewModel.refreshGatewayConnection() }) { Text("Reconnect Now") }
+        Button(onClick = { openInBrave(gatewayWebUrl) }, enabled = !gatewayWebUrl.isNullOrBlank()) {
+          Text("Open in Brave")
+        }
+      }
+    }
+
+    item { HorizontalDivider() }
+
     if (!isConnected || visibleGateways.isNotEmpty()) {
       item {
         Text(
@@ -373,8 +438,9 @@ fun SettingsSheet(viewModel: MainViewModel) {
                   NodeForegroundService.start(context)
                   viewModel.connect(gateway)
                 },
+                enabled = !manualEnabled,
               ) {
-                Text("Connect")
+                Text(if (manualEnabled) "Manual active" else "Connect")
               }
             },
           )
@@ -467,6 +533,72 @@ fun SettingsSheet(viewModel: MainViewModel) {
     // Voice
     item { Text("Voice", style = MaterialTheme.typography.titleSmall) }
     item {
+      ListItem(
+        headlineContent = { Text("Model Route") },
+        supportingContent = {
+          Text(
+            "${modelRouteMode.label} • ${modelRouteMode.summary}",
+          )
+        },
+      )
+    }
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        ModelRouteMode.entries.forEach { mode ->
+          ListItem(
+            headlineContent = { Text(mode.label) },
+            supportingContent = { Text(mode.summary) },
+            trailingContent = {
+              RadioButton(
+                selected = modelRouteMode == mode,
+                onClick = { viewModel.setModelRouteMode(mode) },
+              )
+            },
+          )
+        }
+      }
+    }
+    item {
+      Text(
+        "Routing hook scaffold active: voice wake + talk requests apply route-aware thinking policy.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    item {
+      ListItem(
+        headlineContent = { Text("Talk Mode") },
+        supportingContent = { Text(talkStatusText) },
+        trailingContent = {
+          Switch(
+            checked = talkEnabled,
+            onCheckedChange = { on ->
+              if (on) {
+                val micOk =
+                  ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                    PackageManager.PERMISSION_GRANTED
+                if (!micOk) audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                viewModel.setTalkEnabled(true)
+              } else {
+                viewModel.setTalkEnabled(false)
+              }
+            },
+          )
+        },
+      )
+    }
+    item {
+      ListItem(
+        headlineContent = { Text("Talk Replies") },
+        supportingContent = { Text(if (talkVoiceOutputEnabled) "Voice output" else "Text only") },
+        trailingContent = {
+          Switch(
+            checked = talkVoiceOutputEnabled,
+            onCheckedChange = viewModel::setTalkVoiceOutputEnabled,
+          )
+        },
+      )
+    }
+    item {
       val enabled = voiceWakeMode != VoiceWakeMode.Off
       ListItem(
         headlineContent = { Text("Voice Wake") },
@@ -550,6 +682,12 @@ fun SettingsSheet(viewModel: MainViewModel) {
               focusManager.clearFocus()
             },
           ),
+      )
+    }
+    item {
+      Text(
+        "Tip: use the Chat bubble to type messages any time.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
     item { Button(onClick = viewModel::resetWakeWordsDefaults) { Text("Reset defaults") } }
