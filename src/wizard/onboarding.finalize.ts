@@ -465,6 +465,17 @@ export async function finalizeOnboardingWizard(
     "What now",
   );
 
+  // Bootstrap dynamic model routing limits on first setup if script exists.
+  try {
+    const { spawn } = await import("node:child_process");
+    const scriptPath = resolveUserPath("~/.openclaw/workspace/scripts/update-llm-routing.py");
+    if (await fs.access(scriptPath).then(() => true).catch(() => false)) {
+      spawn(scriptPath, { stdio: "ignore", detached: true });
+    }
+  } catch {
+    // ignore bootstrap errors
+  }
+
   await prompter.outro(
     controlUiOpened
       ? "Onboarding complete. Dashboard opened; keep that tab to control OpenClaw."

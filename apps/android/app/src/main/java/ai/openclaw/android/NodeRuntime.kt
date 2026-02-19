@@ -78,6 +78,9 @@ class NodeRuntime(context: Context) {
   val voiceWakeStatusText: StateFlow<String>
     get() = voiceWake.statusText
 
+  val voiceWakeMicPowerDb: StateFlow<Float>
+    get() = voiceWake.micPowerDb
+
   val talkStatusText: StateFlow<String>
     get() = micCapture.statusText
 

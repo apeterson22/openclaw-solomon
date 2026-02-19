@@ -28,6 +28,9 @@ class VoiceWakeManager(
   private val _statusText = MutableStateFlow("Off")
   val statusText: StateFlow<String> = _statusText
 
+  private val _micPowerDb = MutableStateFlow(-60f)
+  val micPowerDb: StateFlow<Float> = _micPowerDb
+
   var triggerWords: List<String> = emptyList()
     private set
 
@@ -126,7 +129,9 @@ class VoiceWakeManager(
 
       override fun onBeginningOfSpeech() {}
 
-      override fun onRmsChanged(rmsdB: Float) {}
+      override fun onRmsChanged(rmsdB: Float) {
+        _micPowerDb.value = rmsdB
+      }
 
       override fun onBufferReceived(buffer: ByteArray?) {}
 
