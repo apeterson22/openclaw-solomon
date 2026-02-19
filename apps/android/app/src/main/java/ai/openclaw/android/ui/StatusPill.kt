@@ -30,6 +30,7 @@ fun StatusPill(
   talkEnabled: Boolean,
   talkListening: Boolean,
   talkSpeaking: Boolean,
+  workloadActive: Boolean,
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   activity: StatusActivity? = null,
@@ -76,19 +77,31 @@ fun StatusPill(
         )
       }
 
-      if (!compact) activity?.let {
+      if (!compact) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-          Icon(
-            imageVector = activity.icon,
-            contentDescription = activity.contentDescription,
-            tint = activity.tint ?: overlayIconColor(),
-            modifier = Modifier.size(16.dp),
-          )
+          val workloadColor = if (workloadActive) Color(0xFF2ECC71) else MaterialTheme.colorScheme.onSurfaceVariant
           Text(
-            text = activity.title,
+            text = if (workloadActive) "Workload: Active" else "Workload: Idle",
             style = MaterialTheme.typography.labelMedium,
+            color = workloadColor,
             maxLines = 1,
           )
+        }
+
+        activity?.let {
+          Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+              imageVector = activity.icon,
+              contentDescription = activity.contentDescription,
+              tint = activity.tint ?: overlayIconColor(),
+              modifier = Modifier.size(16.dp),
+            )
+            Text(
+              text = activity.title,
+              style = MaterialTheme.typography.labelMedium,
+              maxLines = 1,
+            )
+          }
         }
       }
     }

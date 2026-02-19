@@ -106,7 +106,9 @@ fun RootScreen(viewModel: MainViewModel) {
   val isForeground by viewModel.isForeground.collectAsState()
   val voiceWakeStatusText by viewModel.voiceWakeStatusText.collectAsState()
   val voiceWakeIsListening by viewModel.voiceWakeIsListening.collectAsState()
+  val voiceWakeMicPowerDb by viewModel.voiceWakeMicPowerDb.collectAsState()
   val talkEnabled by viewModel.talkEnabled.collectAsState()
+  val talkVoiceOutputEnabled by viewModel.talkVoiceOutputEnabled.collectAsState()
   val talkStatusText by viewModel.talkStatusText.collectAsState()
   val talkIsListening by viewModel.talkIsListening.collectAsState()
   val talkIsSpeaking by viewModel.talkIsSpeaking.collectAsState()
@@ -218,6 +220,7 @@ fun RootScreen(viewModel: MainViewModel) {
     ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
       PackageManager.PERMISSION_GRANTED
   val micActive = hasMicPermission && (voiceWakeIsListening || (talkEnabled && talkIsListening))
+  val workloadActive = talkIsSpeaking || talkIsListening || voiceWakeIsListening || screenRecordActive || cameraHud != null
 
   Box(modifier = Modifier.fillMaxSize()) {
     CanvasView(viewModel = viewModel, modifier = Modifier.fillMaxSize())
@@ -241,12 +244,17 @@ fun RootScreen(viewModel: MainViewModel) {
     )
 
     if (compactCoverMode) {
-      CoverVoiceFxOverlay(
-        seamColor = seamColor,
-        talkEnabled = talkEnabled,
-        isListening = talkIsListening || voiceWakeIsListening,
-        isSpeaking = talkIsSpeaking,
-      )
+      Popup(alignment = Alignment.Center, properties = PopupProperties(focusable = false)) {
+        TalkOrbOverlay(
+          seamColor = seamColor,
+          statusText = talkStatusText,
+          isListening = talkIsListening || voiceWakeIsListening,
+          isSpeaking = talkIsSpeaking,
+          micPowerDb = voiceWakeMicPowerDb,
+          talkVoiceOutputEnabled = talkVoiceOutputEnabled,
+          modifier = Modifier.fillMaxSize(), // Fill the entire cover screen
+        )
+      }
     }
   }
 
@@ -290,6 +298,7 @@ fun RootScreen(viewModel: MainViewModel) {
       talkEnabled = talkEnabled,
       talkListening = talkIsListening,
       talkSpeaking = talkIsSpeaking,
+      workloadActive = workloadActive,
       activity = activity,
       compact = compactCoverMode,
       onClick = { sheet = Sheet.Settings },
@@ -369,6 +378,8 @@ fun RootScreen(viewModel: MainViewModel) {
         statusText = talkStatusText,
         isListening = talkIsListening,
         isSpeaking = talkIsSpeaking,
+        micPowerDb = voiceWakeMicPowerDb,
+        talkVoiceOutputEnabled = talkVoiceOutputEnabled,
       )
     }
   }
