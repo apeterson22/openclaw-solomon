@@ -1,6 +1,6 @@
 package ai.openclaw.android.ui
 
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -17,7 +17,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -25,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun TalkOrbOverlay(
@@ -32,20 +36,10 @@ fun TalkOrbOverlay(
   statusText: String,
   isListening: Boolean,
   isSpeaking: Boolean,
+  micPowerDb: Float,
+  talkVoiceOutputEnabled: Boolean,
   modifier: Modifier = Modifier,
 ) {
-  val transition = rememberInfiniteTransition(label = "talk-orb")
-  val t by
-    transition.animateFloat(
-      initialValue = 0f,
-      targetValue = 1f,
-      animationSpec =
-        infiniteRepeatable(
-          animation = tween(durationMillis = 1500, easing = LinearEasing),
-          repeatMode = RepeatMode.Restart,
-        ),
-      label = "pulse",
-    )
 
   val trimmed = statusText.trim()
   val showStatus = trimmed.isNotEmpty() && trimmed != "Off"
@@ -56,79 +50,119 @@ fun TalkOrbOverlay(
       else -> "Thinking"
     }
 
+  val targetAmplitude = ((micPowerDb + 60f) / 60f).coerceIn(0f, 1f)
+  val smoothAmplitude = remember { Animatable(0f) }
+  LaunchedEffect(targetAmplitude) {
+    val duration = if (targetAmplitude > smoothAmplitude.value) 90 else 220
+    smoothAmplitude.animateTo(targetAmplitude, animationSpec = tween(duration))
+  }
+
   Column(
     modifier = modifier.padding(24.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     Box(contentAlignment = Alignment.Center) {
+      val amplitude = smoothAmplitude.value
+      val infinite = rememberInfiniteTransition(label = "electric-pulse")
+      val pulse by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(animation = tween(1400), repeatMode = RepeatMode.Restart),
+        label = "pulse",
+      )
+
       Canvas(modifier = Modifier.size(360.dp)) {
         val center = this.center
-        val baseRadius = size.minDimension * 0.30f
+        val maxRadius = size.minDimension / 2
+        val strokeWidth = 2.6.dp.toPx()
 
-        val ring1 = 1.05f + (t * 0.25f)
-        val ring2 = 1.20f + (t * 0.55f)
-        val ringAlpha1 = (1f - t) * 0.34f
-        val ringAlpha2 = (1f - t) * 0.22f
+        val baseAlpha = 0.10f + (pulse * 0.12f)
+        val baseScale = 0.86f + (pulse * 0.14f)
 
         drawCircle(
-          color = seamColor.copy(alpha = ringAlpha1),
-          radius = baseRadius * ring1,
+          color = seamColor.copy(alpha = baseAlpha),
+          radius = maxRadius * baseScale,
           center = center,
-          style = Stroke(width = 3.dp.toPx()),
-        )
-        drawCircle(
-          color = seamColor.copy(alpha = ringAlpha2),
-          radius = baseRadius * ring2,
-          center = center,
-          style = Stroke(width = 3.dp.toPx()),
+          style = Stroke(width = strokeWidth),
         )
 
+        // Electric spikes synced to mic amplitude
+        val spikes = 48
+        val spikeRadius = maxRadius * (0.62f + amplitude * 0.18f)
+        val spikeAmp = maxRadius * (0.05f + amplitude * 0.18f)
+        for (i in 0 until spikes) {
+          val theta = (i / spikes.toFloat()) * (2f * Math.PI).toFloat() + pulse * 1.8f
+          val jitter = sin(theta * 6f + pulse * 10f) * 0.35f
+          val inner = spikeRadius * (0.85f + jitter * 0.08f)
+          val outer = inner + spikeAmp * (0.8f + sin(theta * 3f + pulse * 4f) * 0.4f)
+          val x1 = center.x + cos(theta) * inner
+          val y1 = center.y + sin(theta) * inner
+          val x2 = center.x + cos(theta) * outer
+          val y2 = center.y + sin(theta) * outer
+          val alpha = (0.25f + amplitude * 0.6f).coerceIn(0.15f, 0.9f)
+          drawLine(
+            color = seamColor.copy(alpha = alpha),
+            start = androidx.compose.ui.geometry.Offset(x1, y1),
+            end = androidx.compose.ui.geometry.Offset(x2, y2),
+            strokeWidth = strokeWidth,
+          )
+        }
+
+        // Dual arc rings
+        repeat(3) { idx ->
+          val phase = (pulse + idx * 0.2f) % 1f
+          val r = maxRadius * (0.55f + phase * (0.35f + idx * 0.08f))
+          val a = (1f - phase) * (0.22f - idx * 0.04f) + amplitude * 0.22f
+          drawArc(
+            color = seamColor.copy(alpha = a.coerceAtLeast(0f)),
+            startAngle = (pulse * 360f + idx * 42f) % 360f,
+            sweepAngle = 110f + amplitude * 80f,
+            useCenter = false,
+            topLeft = center - androidx.compose.ui.geometry.Offset(r, r),
+            size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
+            style = Stroke(width = strokeWidth + amplitude * 2f),
+          )
+        }
+
+        // Core glow
         drawCircle(
           brush =
             Brush.radialGradient(
               colors =
                 listOf(
-                  seamColor.copy(alpha = 0.92f),
-                  seamColor.copy(alpha = 0.40f),
-                  Color.Black.copy(alpha = 0.56f),
+                  seamColor.copy(alpha = 0.15f + amplitude * 0.75f),
+                  seamColor.copy(alpha = 0.08f + amplitude * 0.25f),
+                  Color.Black.copy(alpha = 0.2f),
                 ),
               center = center,
-              radius = baseRadius * 1.35f,
+              radius = maxRadius * 0.45f * (1f + amplitude * 0.35f),
             ),
-          radius = baseRadius,
+          radius = maxRadius * 0.32f,
           center = center,
-        )
-
-        drawCircle(
-          color = seamColor.copy(alpha = 0.34f),
-          radius = baseRadius,
-          center = center,
-          style = Stroke(width = 1.dp.toPx()),
         )
       }
-    }
-
-    if (showStatus) {
-      Surface(
-        color = Color.Black.copy(alpha = 0.40f),
-        shape = CircleShape,
-      ) {
+      if (!talkVoiceOutputEnabled || showStatus) {
+        Surface(
+          color = Color.Black.copy(alpha = 0.64f),
+          shape = CircleShape,
+        ) {
+          Text(
+            text = if (!talkVoiceOutputEnabled) "Voice output disabled" else trimmed,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            color = Color.White.copy(alpha = 0.92f),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+          )
+        }
+      } else {
         Text(
-          text = trimmed,
-          modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-          color = Color.White.copy(alpha = 0.92f),
+          text = phase,
+          color = Color.White.copy(alpha = 0.80f),
           style = MaterialTheme.typography.labelLarge,
           fontWeight = FontWeight.SemiBold,
         )
       }
-    } else {
-      Text(
-        text = phase,
-        color = Color.White.copy(alpha = 0.80f),
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-      )
     }
   }
 }
