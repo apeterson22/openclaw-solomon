@@ -49,6 +49,7 @@ class NodeRuntime(context: Context) {
   val location = LocationCaptureManager(appContext)
   val screenRecorder = ScreenRecordManager(appContext)
   val sms = SmsManager(appContext)
+  val ai = AiHandler(appContext)
   private val json = Json { ignoreUnknownKeys = true }
 
   private val externalAudioCaptureActive = MutableStateFlow(false)
@@ -172,6 +173,7 @@ class NodeRuntime(context: Context) {
     locationHandler = locationHandler,
     screenHandler = screenHandler,
     smsHandler = smsHandlerImpl,
+    aiHandler = ai,
     a2uiHandler = a2uiHandler,
     debugHandler = debugHandler,
     appUpdateHandler = appUpdateHandler,

@@ -18,6 +18,7 @@ class InvokeDispatcher(
   private val notificationsHandler: NotificationsHandler,
   private val screenHandler: ScreenHandler,
   private val smsHandler: SmsHandler,
+  private val aiHandler: AiHandler,
   private val a2uiHandler: A2UIHandler,
   private val debugHandler: DebugHandler,
   private val appUpdateHandler: AppUpdateHandler,
@@ -135,6 +136,9 @@ class InvokeDispatcher(
 
       // SMS command
       OpenClawSmsCommand.Send.rawValue -> smsHandler.handleSmsSend(paramsJson)
+
+      // AI command (On-device Gemini Nano)
+      "ai.prompt" -> aiHandler.handlePrompt(paramsJson)
 
       // Debug commands
       "debug.ed25519" -> debugHandler.handleEd25519()

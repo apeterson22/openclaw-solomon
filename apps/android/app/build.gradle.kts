@@ -131,6 +131,9 @@ dependencies {
   implementation("org.commonmark:commonmark-ext-gfm-tables:0.27.1")
   implementation("org.commonmark:commonmark-ext-task-list-items:0.27.1")
 
+  // Google AI Edge SDK for on-device Gemini Nano
+  implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
+
   // CameraX (for node.invoke camera.* parity)
   implementation("androidx.camera:camera-core:1.5.2")
   implementation("androidx.camera:camera-camera2:1.5.2")

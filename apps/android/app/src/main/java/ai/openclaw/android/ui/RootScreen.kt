@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
@@ -231,17 +232,28 @@ fun RootScreen(viewModel: MainViewModel) {
           .fillMaxSize()
           .background(
             brush =
-              Brush.radialGradient(
+              Brush.verticalGradient(
                 colors =
                   listOf(
-                    ComposeColor(0x99A30F25),
-                    seamColor.copy(alpha = if (compactCoverMode) 0.22f else 0.16f),
-                    ComposeColor(0xFF050507).copy(alpha = 0.30f),
-                    ComposeColor.Transparent,
+                    ComposeColor(0xFF0D0D12),
+                    ComposeColor(0xFF1A1A24),
+                    ComposeColor(0xFF050507),
                   ),
               ),
           ),
     )
+    
+    // Grid pattern for futuristic tech look
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val step = 40.dp.toPx()
+        val gridColor = seamColor.copy(alpha = 0.05f)
+        for (x in 0..size.width.toInt() step step.toInt()) {
+            drawLine(gridColor, Offset(x.toFloat(), 0f), Offset(x.toFloat(), size.height), strokeWidth = 1f)
+        }
+        for (y in 0..size.height.toInt() step step.toInt()) {
+            drawLine(gridColor, Offset(0f, y.toFloat()), Offset(size.width, y.toFloat()), strokeWidth = 1f)
+        }
+    }
 
     if (compactCoverMode) {
       Popup(alignment = Alignment.Center, properties = PopupProperties(focusable = false)) {
