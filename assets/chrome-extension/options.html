@@ -186,9 +186,15 @@
             <input id="token" type="password" autocomplete="off" style="width: min(520px, 100%)" />
             <button id="save" type="button">Save</button>
           </div>
+          <label for="discordLink" style="margin-top: 10px">Discord link</label>
+          <div class="row">
+            <input id="discordLink" type="url" autocomplete="off" placeholder="https://discord.com/invite/..." style="width: min(520px, 100%)" />
+            <button id="joinDiscord" type="button">Join Discord</button>
+          </div>
           <div class="hint">
             Default port: <code>18792</code>. Extension connects to: <code id="relay-url">http://127.0.0.1:&lt;port&gt;/</code>.
             Gateway token must match <code>gateway.auth.token</code> (or <code>OPENCLAW_GATEWAY_TOKEN</code>).
+            The Discord button opens your configured link (falls back to <code>https://discord.com/invite/clawd</code>).
           </div>
           <div class="status" id="status"></div>
         </div>

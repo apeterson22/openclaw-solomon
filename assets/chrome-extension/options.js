@@ -48,12 +48,26 @@ async function checkRelayReachable(port, token) {
   }
 }
 
+const DEFAULT_DISCORD_LINK = 'https://discord.com/invite/clawd'
+
+function normalizeDiscordLink(raw) {
+  const v = String(raw || '').trim()
+  if (!v) return DEFAULT_DISCORD_LINK
+  try {
+    const u = new URL(v)
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.toString()
+  } catch {}
+  return DEFAULT_DISCORD_LINK
+}
+
 async function load() {
-  const stored = await chrome.storage.local.get(['relayPort', 'gatewayToken'])
+  const stored = await chrome.storage.local.get(['relayPort', 'gatewayToken', 'discordLink'])
   const port = clampPort(stored.relayPort)
   const token = String(stored.gatewayToken || '').trim()
+  const discordLink = normalizeDiscordLink(stored.discordLink)
   document.getElementById('port').value = String(port)
   document.getElementById('token').value = token
+  document.getElementById('discordLink').value = discordLink
   updateRelayUrl(port)
   await checkRelayReachable(port, token)
 }
@@ -61,14 +75,25 @@ async function load() {
 async function save() {
   const portInput = document.getElementById('port')
   const tokenInput = document.getElementById('token')
+  const discordLinkInput = document.getElementById('discordLink')
   const port = clampPort(portInput.value)
   const token = String(tokenInput.value || '').trim()
-  await chrome.storage.local.set({ relayPort: port, gatewayToken: token })
+  const discordLink = normalizeDiscordLink(discordLinkInput.value)
+  await chrome.storage.local.set({ relayPort: port, gatewayToken: token, discordLink })
   portInput.value = String(port)
   tokenInput.value = token
+  discordLinkInput.value = discordLink
   updateRelayUrl(port)
   await checkRelayReachable(port, token)
 }
 
+async function joinDiscord() {
+  const stored = await chrome.storage.local.get(['discordLink'])
+  const link = normalizeDiscordLink(stored.discordLink || document.getElementById('discordLink').value)
+  await chrome.storage.local.set({ discordLink: link })
+  window.open(link, '_blank', 'noopener,noreferrer')
+}
+
 document.getElementById('save').addEventListener('click', () => void save())
+document.getElementById('joinDiscord').addEventListener('click', () => void joinDiscord())
 void load()

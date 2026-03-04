@@ -21,3 +21,4 @@ Purpose: attach OpenClaw to an existing Chrome tab so the Gateway can automate i
 
 - `Relay port`: defaults to `18792`.
 - `Gateway token`: required. Set this to `gateway.auth.token` (or `OPENCLAW_GATEWAY_TOKEN`).
+- `Discord link`: optional user/server invite link used by the **Join Discord** button (defaults to `https://discord.com/invite/clawd`).
